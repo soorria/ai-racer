@@ -10,6 +10,7 @@ async function ProfileCardImpl() {
   unstable_noStore()
   const user = await getAuthUser()
   const dbUser = user ? await getUserProfile(user.id) : null
+
   return <ClientProfileCard user={dbUser} />
 }
 
