@@ -7,7 +7,6 @@ import { z } from "zod"
 
 import { cmp, db, schema } from "~/lib/db"
 import { type DocInsert } from "~/lib/db/types"
-import { type MaybeArray } from "~/lib/utils/types"
 
 const QuestionDocSchema = createInsertSchema(schema.questions, {})
 const ProgrammingQuestionDocSchema = createInsertSchema(schema.programmingQuestions, {})

@@ -6,8 +6,8 @@ import { AnimatePresence, motion } from "framer-motion"
 import { Play } from "lucide-react"
 import { usePostHog } from "posthog-js/react"
 
-import type { GameModeDetailsItem, GameModeIds } from "~/lib/games/constants"
-import { GAME_MODE_DETAILS_LIST } from "~/lib/games/constants"
+import type { GameModeDetailsItem, GameModeIds, QuestionType } from "~/lib/games/constants"
+import { createClientQuestionStrategy } from "~/lib/games/question-types/client_create"
 import { api } from "~/lib/trpc/react"
 import { cn } from "~/lib/utils"
 import { AnimatedBorder } from "../ui/custom/animated-border"
@@ -20,11 +20,11 @@ const ExpandedCard = ({ mode, layoutId }: ExpandedCardProps) => {
   return (
     <motion.div
       layoutId={layoutId}
-      className={"relative flex w-full flex-col rounded-2xl p-4 text-black sm:w-64"}
+      className={"relative flex w-full flex-col rounded-2xl p-5 text-black sm:w-64"}
       style={{ backgroundColor: mode.color }}
       transition={{ type: "spring", duration: 0.3, bounce: 0.2 }}
     >
-      <motion.div className="mb-2 flex items-center gap-2">
+      <motion.div className="mb-1 flex items-center gap-2">
         <motion.div layoutId={`icon-${layoutId}`} className="absolute left-5 top-5">
           <mode.icon className="h-6 w-6" />
         </motion.div>
@@ -33,7 +33,7 @@ const ExpandedCard = ({ mode, layoutId }: ExpandedCardProps) => {
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.15 }}
-          className="ml-9 mt-1 text-xl font-medium"
+          className="ml-8 text-xl font-medium"
         >
           {mode.title}
         </motion.h2>
@@ -113,7 +113,8 @@ const PlayButton = ({ onClick, isLoading }: PlayButtonProps) => {
   )
 }
 
-const GameModeSelectorAnimation = () => {
+const GameModeSelectorAnimation = ({ questionType }: { questionType: QuestionType }) => {
+  const questionStrategy = createClientQuestionStrategy(questionType)
   const router = useRouter()
   const posthog = usePostHog()
 
@@ -142,11 +143,11 @@ const GameModeSelectorAnimation = () => {
     let intervalId: NodeJS.Timeout
     if (isSelecting) {
       intervalId = setInterval(() => {
-        setHighlightedIndex((prev) => (prev + 1) % GAME_MODE_DETAILS_LIST.length)
+        setHighlightedIndex((prev) => (prev + 1) % questionStrategy.supportedGameModes.length)
       }, 200)
     }
     return () => clearInterval(intervalId)
-  }, [isSelecting])
+  }, [questionStrategy.supportedGameModes.length, isSelecting])
 
   const handleClick = () => {
     setShowPlayButton(false)
@@ -154,7 +155,7 @@ const GameModeSelectorAnimation = () => {
 
     setTimeout(() => {
       setIsSelecting(true)
-      joinGame.mutate({})
+      joinGame.mutate({ questionType })
     }, 500)
   }
 
@@ -163,13 +164,13 @@ const GameModeSelectorAnimation = () => {
       <div className="mb-20 sm:absolute sm:mb-0">
         <AnimatePresence mode="popLayout" initial={false}>
           <motion.div
-            className={cn("grid grid-cols-1 gap-6", {
+            className={cn("grid grid-cols-1 gap-7", {
               "sm:grid-cols-4": !showPlayButton,
               "sm:grid-cols-2": showPlayButton,
             })}
             key={isCompact ? "compact" : "expanded"}
           >
-            {GAME_MODE_DETAILS_LIST.map((mode, index) =>
+            {questionStrategy.supportedGameModes.map((mode, index) =>
               isCompact ? (
                 <CompactCard
                   key={`compact-${index}`}

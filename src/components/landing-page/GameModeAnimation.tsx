@@ -5,20 +5,22 @@ import React, { useEffect, useState } from "react"
 import { AnimatePresence, motion } from "framer-motion"
 import useMeasure from "react-use-measure"
 
-import { GAME_MODE_DETAILS_LIST } from "~/lib/games/constants"
+import type { QuestionType } from "~/lib/games/constants"
+import { createClientQuestionStrategy } from "~/lib/games/question-types/client_create"
 
-const GameModeAnimation = () => {
+const GameModeAnimation = ({ questionType }: { questionType: QuestionType }) => {
+  const questionStrategy = createClientQuestionStrategy(questionType)
   const [activeIndex, setActiveIndex] = useState(0)
   const [measureRef, bounds] = useMeasure()
   const [measuredWidth, setMeasuredWidth] = useState(0)
 
   useEffect(() => {
     const interval = setInterval(() => {
-      setActiveIndex((current) => (current + 1) % GAME_MODE_DETAILS_LIST.length)
+      setActiveIndex((current) => (current + 1) % questionStrategy.supportedGameModes.length)
     }, 3000)
 
     return () => clearInterval(interval)
-  }, [activeIndex])
+  }, [activeIndex, questionStrategy.supportedGameModes.length])
 
   useEffect(() => {
     setMeasuredWidth(bounds.width)
@@ -39,11 +41,11 @@ const GameModeAnimation = () => {
     <div className="flex select-none flex-col">
       {/* Hidden element for measuring text width */}
       <div className="invisible absolute" ref={measureRef}>
-        {GAME_MODE_DETAILS_LIST[activeIndex]?.title}
+        {questionStrategy.supportedGameModes[activeIndex]?.title}
       </div>
 
       <div className="mb-3 flex items-center gap-3">
-        {GAME_MODE_DETAILS_LIST.map((mode, index) => {
+        {questionStrategy.supportedGameModes.map((mode, index) => {
           const isActive = index === activeIndex
 
           return (

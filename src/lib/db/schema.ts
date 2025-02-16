@@ -1,5 +1,4 @@
 import type { SQL } from "drizzle-orm"
-import { pl } from "@faker-js/faker"
 import { relations, sql } from "drizzle-orm"
 import {
   boolean,

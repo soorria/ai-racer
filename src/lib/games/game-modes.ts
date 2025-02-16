@@ -9,6 +9,7 @@ export type PlayerGameSessionToSort = Doc<"playerGameSessions"> & {
   submissionState:
     | (Doc<"playerGameSubmissionStates"> & {
         programmingResults: Doc<"playerProgrammingGameSubmissionStateResults">[]
+        pictureResult: Doc<"playerPictureGameSubmissionStateResults"> | null
       })
     | null
 }
@@ -97,7 +98,7 @@ const getTotalCharactersUsed = (session: PlayerGameSessionToSort) => {
     .reduce((acc, v) => acc + v, 0)
 }
 
-type GameModeFinalizationConfigMap = Record<Doc<"gameStates">["mode"], GameModeFinalizationConfig>
+type GameModeFinalizationConfigMap = Record<GameMode, GameModeFinalizationConfig>
 
 const gameModeFinalizationConfigMap: GameModeFinalizationConfigMap = {
   "fastest-player": {
@@ -153,15 +154,9 @@ export const getPlayerPositionsForGameMode = (
     finalizationConfig,
   )
 
-  return playerGameSessions.map((session) => {
-    return {
-      player_game_session_id: session.id,
-      position: positions[session.user_id]?.position ?? playerGameSessions.length + 2,
-      score: positions[session.user_id]?.score ?? 0,
-      percentageOfTestCasesPassed:
-        (session.submissionState?.programmingResults.filter((r) => r.is_correct)?.length ?? 0) /
-        // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
-        (session.submissionState?.programmingResults?.length || 1),
-    }
-  })
+  return playerGameSessions.map((session) => ({
+    player_game_session_id: session.id,
+    position: positions[session.user_id]?.position ?? playerGameSessions.length + 2,
+    score: positions[session.user_id]?.score ?? 0,
+  }))
 }

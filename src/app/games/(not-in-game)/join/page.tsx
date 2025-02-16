@@ -11,7 +11,7 @@ export default function JoinGame() {
           Jump into a random game mode and put your prompting skills to the test!
         </p>
       </div>
-      <GameModeSelectorAnimation />
+      <GameModeSelectorAnimation questionType="programming" />
     </>
   )
 }

@@ -2,6 +2,7 @@ import React from "react"
 import { useRouter } from "next/navigation"
 import { usePostHog } from "posthog-js/react"
 
+import type { QuestionDifficultyLevels, QuestionType } from "~/lib/games/constants"
 import {
   Select,
   SelectContent,
@@ -9,7 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "~/components/ui/select"
-import { type QuestionDifficultyLevels } from "~/lib/games/constants"
+import { QUESTION_DIFFICULTY_LEVELS } from "~/lib/games/constants"
 import { api } from "~/lib/trpc/react"
 import { Button } from "./ui/button"
 
@@ -34,31 +35,50 @@ export default function AdminSettings({ gameId }: Props) {
       void trpcUtils.games.getGameStateWithQuestion.invalidate()
     },
   })
+
   const [difficulty, setDifficulty] = React.useState<QuestionDifficultyLevels>("easy")
+  const [questionType, setQuestionType] = React.useState<QuestionType>("programming")
   const [gameState, setGameState] = React.useState<ForceGameStatusChange>("waitingForPlayers")
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex gap-2">
-        <Select
-          onValueChange={(a: QuestionDifficultyLevels) => setDifficulty(a)}
-          defaultValue={"easy"}
-        >
-          <SelectTrigger className="w-full flex-1">
-            <SelectValue placeholder="Difficulty" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="easy">Easy</SelectItem>
-            <SelectItem value="medium">Medium</SelectItem>
-            <SelectItem value="hard">Hard</SelectItem>
-          </SelectContent>
-        </Select>
+      <div className="flex flex-col gap-2">
+        <div className="flex gap-2">
+          <Select
+            onValueChange={(type: QuestionType) => setQuestionType(type)}
+            defaultValue="programming"
+          >
+            <SelectTrigger className="w-full flex-1">
+              <SelectValue placeholder="Question Type" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="programming">Programming</SelectItem>
+              <SelectItem value="picture">Picture</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select
+            onValueChange={(a: QuestionDifficultyLevels) => setDifficulty(a)}
+            defaultValue="easy"
+          >
+            <SelectTrigger className="w-full flex-1">
+              <SelectValue placeholder="Difficulty" />
+            </SelectTrigger>
+            <SelectContent>
+              {QUESTION_DIFFICULTY_LEVELS.map((level) => (
+                <SelectItem key={level} value={level}>
+                  {level.charAt(0).toUpperCase() + level.slice(1)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
         <Button
           onClick={() => {
-            joinGame.mutate({ difficulty })
+            joinGame.mutate({ questionType, difficulty })
           }}
+          className="w-full"
         >
-          Join game
+          Join {questionType} game
         </Button>
       </div>
       {gameId && (
@@ -66,7 +86,7 @@ export default function AdminSettings({ gameId }: Props) {
           Change game state
           <Select
             onValueChange={(a: ForceGameStatusChange) => setGameState(a)}
-            defaultValue={"waitingForPlayers"}
+            defaultValue="waitingForPlayers"
           >
             <SelectTrigger className="w-full flex-1">
               <SelectValue placeholder="Game state" />

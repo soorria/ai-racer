@@ -11,6 +11,9 @@ export const DEFAULT_GAME_DURATIONS = {
   inProgress: ms("5m"),
 }
 
+export type QuestionType = (typeof QUESTION_TYPES)[number]
+export const QUESTION_TYPES = ["programming", "picture"] as const
+
 export type GameMode = (typeof GAME_MODES)[number]
 export const GAME_MODES = [
   "fastest-player",

@@ -14,6 +14,7 @@ import {
   DEFAULT_GAME_DURATIONS,
   GAME_STATUS,
   QUESTION_DIFFICULTY_LEVELS,
+  QUESTION_TYPES,
 } from "~/lib/games/constants"
 import {
   getGameById,
@@ -21,19 +22,19 @@ import {
   getInGameState,
   getLatestActiveGameForUser,
   getQuestionById,
-  getRandomProgrammingQuestion,
   getSessionInfoForPlayer,
   getSubmissionMetrics,
   getUserGameHistory,
 } from "~/lib/games/queries"
-import { getQuestionTestCasesOrderBy, getRandomGameMode } from "~/lib/games/utils"
+import { getQuestionTestCasesOrderBy } from "~/lib/games/utils"
 import { logger } from "~/lib/server/logger"
 import { createTRPCRouter, protectedProcedure } from "~/lib/trpc/trpc"
 import { randomElement } from "~/lib/utils/random"
 import { getUserProfile, requireUserProfile } from "../auth/profile"
 import { pushGameEvent } from "./events/server"
-import { getPlayerPositionsForGameMode } from "./game-modes"
 import { cancelInngestGameWorkflow, finalizeGame, touchGameState } from "./internal-actions"
+import { type ServerQuestionStrategy } from "./question-types/base"
+import { createServerQuestionStrategy } from "./question-types/server_create"
 
 export const gameRouter = createTRPCRouter({
   getPlayerGameSession: protectedProcedure
@@ -79,34 +80,6 @@ export const gameRouter = createTRPCRouter({
         return getSubmissionMetrics(ctx.db, sessionInfo.submission_state_id)
       }
       return null
-    }),
-
-  getPlayerPositionMetrics: protectedProcedure
-    .input(
-      z.object({
-        game_id: z.string(),
-      }),
-    )
-    .query(async ({ ctx, input }) => {
-      const [game, playerGameSessions] = await Promise.all([
-        getGameById(ctx.db, input.game_id),
-        ctx.db.query.playerGameSessions.findMany({
-          where: cmp.eq(schema.playerGameSessions.game_id, input.game_id),
-          with: {
-            chatHistory: true,
-            submissionState: {
-              with: {
-                programmingResults: true,
-              },
-            },
-          },
-        }),
-      ])
-      if (!game) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "Game not found" })
-      }
-      const positionResults = getPlayerPositionsForGameMode(game, playerGameSessions)
-      return positionResults
     }),
 
   submitCode: protectedProcedure
@@ -330,6 +303,7 @@ export const gameRouter = createTRPCRouter({
   join: protectedProcedure
     .input(
       z.object({
+        questionType: z.enum(QUESTION_TYPES),
         difficulty: z.optional(z.enum(QUESTION_DIFFICULTY_LEVELS)),
       }),
     )
@@ -343,8 +317,12 @@ export const gameRouter = createTRPCRouter({
         throw new Error("You are already in a game")
       }
 
+      const questionStrategy = createServerQuestionStrategy(input.questionType)
+
       const { game } = await ctx.db.transaction(async (tx) => {
-        const { game, question } = await getOrCreateGameToJoin(tx, ctx.inngest, input.difficulty)
+        const { game, question } = await getOrCreateGameToJoin(tx, ctx.inngest, questionStrategy, {
+          difficulty: input.difficulty,
+        })
 
         await tx.insert(schema.playerGameSessions).values({
           user_id: ctx.user.id,
@@ -545,7 +523,10 @@ async function triggerPlayerGameSessionUpdate(tx: DBOrTransaction, playerGameSes
 async function getOrCreateGameToJoin(
   tx: DBOrTransaction,
   inngest: Inngest,
-  difficulty?: QuestionDifficultyLevels,
+  questionStrategy: ServerQuestionStrategy,
+  options: {
+    difficulty?: QuestionDifficultyLevels
+  },
 ): Promise<{
   game: Doc<"gameStates">
   question: Doc<"questions"> & {
@@ -553,10 +534,11 @@ async function getOrCreateGameToJoin(
   }
 }> {
   let waitingForPlayersGames = await getGamesWithStatus(tx, "waitingForPlayers")
-  if (difficulty) {
-    waitingForPlayersGames = waitingForPlayersGames.filter(
-      (game) => game.question.difficulty === difficulty,
-    )
+  if (options.difficulty) {
+    waitingForPlayersGames = waitingForPlayersGames.filter((game) => {
+      const matchesDifficulty = game.question.difficulty === options.difficulty
+      return matchesDifficulty && questionStrategy.isCompatibleQuestion(game.question)
+    })
   }
   const existingGameToJoin = randomElement(waitingForPlayersGames)
 
@@ -569,16 +551,19 @@ async function getOrCreateGameToJoin(
     }
   }
 
-  return await createGame(tx, inngest, difficulty)
+  return await createGame(tx, inngest, questionStrategy, options)
 }
 
 async function createGame(
   tx: DBOrTransaction,
   inngest: Inngest,
-  difficulty?: QuestionDifficultyLevels,
+  questionStrategy: ServerQuestionStrategy,
+  options: {
+    difficulty?: QuestionDifficultyLevels
+  },
 ) {
-  const question = await getRandomProgrammingQuestion(tx, difficulty)
-  const gameMode = getRandomGameMode()
+  const question = await questionStrategy.getOrGenerateQuestion(tx, options)
+  const gameMode = questionStrategy.getRandomGameMode()
 
   const [game] = await tx
     .insert(schema.gameStates)

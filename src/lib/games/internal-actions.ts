@@ -59,6 +59,7 @@ export async function finalizeGame(gameId: string) {
           submissionState: {
             with: {
               programmingResults: true,
+              pictureResult: true,
             },
           },
         },
